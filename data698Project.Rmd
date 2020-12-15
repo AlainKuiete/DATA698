@@ -1,0 +1,1420 @@
+---
+title: "DATA 621 Final Project"
+author: Alain Kuiete Tchoupou
+date: "11/18/2020"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+## OVERVIEW
+
+The self-management of asthma help improve patient health. 
+Asthma self-management provide to the patient and caregivers the skills to understand the disease and its treatment.
+It teaches them to take medications appropriately, recognize early signs and symptoms of asthma episodes, seek medical care as appropriate, and identify and avoid environmental asthma allergens and irritants 
+In this project, we study the characteristics that influence asthma self-management.
+
+
+```{r eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(psych)
+library(GGally)
+library(corrplot)
+library(DMwR)
+library(caret)
+library(VIM)
+library(glmnet)
+library(doParallel)
+library(xgboost) 
+library(mice)
+library(data.table)
+library(kableExtra)
+library(mlbench)
+```
+
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+library(haven)
+asthma.adult <- read_sas("ACBS_2017_ADULT_PUBLIC_LLCP.sas7bdat")
+#View(asthma.adult)
+```
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+#write.csv(asthma.adult, "asthma_adult.csv")
+#cn <- colnames(asthma.adult)
+#write.csv(cn, "asthma_column_name.csv")
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+dim(asthma.adult)
+view(asthma.adult)
+```
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+colnames(asthma.adult)
+```
+
+
+
+The data set come from CDC with ulr = "https://www.cdc.gov/brfss/acbs/2016_documentation.html". It is a survey study.
+The download file is "2016 ACBS Adult Data SAS [ZIP – 3.10 MB]"
+The unzip file has 899 variables and 13,922 cases.
+We have selected the variables to use on our studies. 
+
+
+## EXPLORATORY DATA ANALYSIS
+
+Meaning of variables used in the dataset
+
+#### Response Variables
+
+ASTHNOW Have you ever been told by a doctor or other health professional that you have
+asthma?
+
+TCH_SIGN  Has a doctor or other health professional ever taught you...
+a. How to recognize early signs or symptoms of an asthma episode?
+
+TCH_RESP Has a doctor or other health professional ever taught you...
+b. What to do during an asthma episode or attack?
+
+TCH_MON A peak flow meter is a hand held device that measures how quickly you can blow air
+out of your lungs. Has a doctor or other health professional ever taught you…
+c. How to use a peak flow meter to adjust your daily medications?
+
+MGT_PLAN An asthma action plan, or asthma management plan, is a form with instructions
+about when to change the amount or type of medicine, when to call the doctorfor
+advice, and when to go to the emergency room.
+Has a doctor or other health professional EVER given you an asthma action plan?
+
+
+MOD_ENV (7.13) INTERVIEWER READ: Now, back to questions specifically about you.
+Has a health professional ever advised you to change things in your home, school, or
+work to improve your asthma
+
+MGT_CLAS Have you ever taken a course or class on how to manage your asthma?
+
+INHALERH (8.3) Did a doctor or other health professional show you how to use the inhaler?
+
+INHALERW (8.4) Did a doctor or other health professional watch you use the inhaler?
+
+Responses types
+(1) YES
+(2) NO
+(7) DON’T KNOW
+(9) REFUSED
+
+### Possible Predictors
+
+MISS_DAY = "NUMBER OF MISSED DAYS"
+
+MOD_ENV = "EVER ADVISED CHANGE THINGS IN YOUR HOME"
+
+AGEDX = "AGE AT ASTHMA DIAGNOSIS"
+
+AGEG_F6_M = "MODIFIED SIX AGE GROUPS USED IN ASTHMA ADULT POST-STRATIFICATION"
+
+AIRCLEANER = "AIR CLEANER USED"
+
+ASMDCOST = "COST BARRIER: PRIMARY CARE DOCTOR"
+
+ASRXCOST = "COST BARRIER: MEDICATION"
+
+ASSPCOST = "COST BARRIER: SPECIALIST"
+
+CATTMPTS_F = "DISPOSITION CODES FOR CALL ATTEMPTS 1 THROUGH 20 ..."
+
+EMP_STAT = "CURRENT EMPLOYMENT STATUS"
+
+EPIS_12M = "ASTHMA EPISODE OR ATTACK"
+
+EPIS_TP = "NUMBER OF EPISODES / ATTACKS"
+
+ER_TIMES = "NUMBER OF EMERGENCY ROOM VISITS"
+
+ER_VISIT = "EMERGENCY ROOM VISIT"
+
+EVER_ASTH = "EVER HAVE ASTHMA INCONSISTENT WITH BRFSS"
+
+
+HOSPPLAN = "HOSPITAL FOLLOW-UP"
+
+HOSPTIME = "NUMBER OF HOSPITAL VISITS"
+
+HOSP_VST = "HOSPITAL VISIT"
+
+QSTLANG_F = "LANGUAGE IDENTIFIER"
+
+SCR_MED3 = "HAVE ALL THE MEDICATIONS"
+
+UNEMP_R = "REASON NOT NOW EMPLOYED"
+
+URG_TIME = "NUMBER OF URGENT VISITS"
+
+WORKENV5 = "ASTHMA AGGRAVATED BY CURRENT JOB"
+
+WORKENV6 = "ASTHMA CAUSED BY CURRENT JOB"
+
+WORKENV7 = "ASTHMA AGGRAVATED BY PREVIOUS JOB"
+
+WORKENV8 = "ASTHMA CAUSED BY PREVIOUS JOB"
+
+WORKQUIT1 = "EVER CHANGE OR QUIT A JOB"
+
+WORKSEN3 = "DOCTOR DIAGNOSED WORK ASTHMA"
+
+WORKSEN4 = "SELF-IDENTIFIED WORK ASTHMA"
+
+WORKTALK = "DOCTOR DISCUSSED WORK ASTHMA"
+
+INS1 = "INSURANCE"
+
+INS2 = "INSURANCE OR COVERAGE GAP"
+
+LASTSYMP = "LAST HAD ANY SYMPTOMS OF ASTHMA"
+
+LAST_MD = "LAST TALKED TO A DOCTOR"
+
+LAST_MED = "LAST TOOK ASTHMA MEDICATION"
+
+COMPASTH = "TYPICAL ATTACK"
+
+ACT_DAYS30 = "ACTIVITY LIMITATION"
+
+### Constructing the Data Frame by Selecting variables
+We select all possible variable that we can use in our dataset.
+We also start to clean the dataset
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asthma.mgt.adult1 <- data.frame(TCH.SIGN = asthma.adult$TCH_SIGN, 
+                                TCH.RESP = asthma.adult$TCH_RESP,
+                                TCH.MON = asthma.adult$TCH_MON,
+                                MGT.PLAN = asthma.adult$MGT_PLAN,
+                                MGT.CLAS = asthma.adult$MGT_CLAS,
+                                INHALERW = asthma.adult$INHALERW,
+                                #HOSPPLAN = asthma.adult$HOSPPLAN,
+                                MOD.ENV = asthma.adult$MOD_ENV,
+                                SEX = asthma.adult$SEX,
+                                AGEG.F7 = asthma.adult$AGEG_F7,
+                                RACEG.F = asthma.adult$RACEG_F,
+                                #"EDUCA" = asthma.adult[, "_EDUCAG"],
+                                EDUCAL = asthma.adult$EDUCA,
+                                #INCOMEL = asthma.adult$INCOME2,
+                                "INCOMG" = asthma.adult[, "_INCOMG"],
+                                #"BMISCAT "= asthma.adult[, "_BMI5CAT"],
+                                "RFBMIS" = asthma.adult[, "_RFBMI5"],
+                                SMOKE100 = asthma.adult$SMOKE100,
+                                COPD = asthma.adult$COPD,
+                                EMPHY = asthma.adult$EMPHY,
+                                DEPRESS = asthma.adult$DEPRESS,
+                                BRONCH = asthma.adult$BRONCH,
+                                #SYMP.30D = asthma.adult$SYMP_30D,
+                                DUR.30D = asthma.adult$DUR_30D,
+                                #ASLEEP30 = asthma.adult$ASLEEP30,
+                                #SYMPFREE = asthma.adult$SYMPFREE,
+                                INCINDT = asthma.adult$INCIDNT,
+                                LAST.MD = asthma.adult$LAST_MD,
+                                LAST.MED = asthma.adult$LAST_MED,
+                                LAST.SYMP = asthma.adult$LASTSYMP,
+                                #EPIS.12M = asthma.adult$EPIS_12M,
+                                #EPIS.TP = asthma.adult$EPIS_TP,
+                                #DUR.ASTH = asthma.adult$DUR_ASTH,
+                                COMPASTH = asthma.adult$COMPASTH,
+                                INS1 = asthma.adult$INS1,
+                                #INS2 = asthma.adult$INS2,
+                                #ER.TIMES = asthma.adult$ER_TIMES,
+                                ER.VISIT = asthma.adult$ER_VISIT,
+                                #URG.TIMES = asthma.adult$URG_TIME,
+                                HOSP.VST = asthma.adult$HOSP_VST,
+                                #HOSPTIME = asthma.adult$HOSPTIME,
+                                #ASMDCOST = asthma.adult$ASMDCOST,
+                                ASRXCOST = asthma.adult$ASRXCOST,
+                                #ASSPCOST = asthma.adult$ASSPCOST,
+                                WORKTALK = asthma.adult$WORKTALK,
+                                ACT.DAY30 = asthma.adult$ACT_DAYS30
+                                )
+```
+
+#### summary of the data set after categorizing the variables
+Here we categ
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asthma.mgt.adult2 <- data.frame(apply(asthma.mgt.adult1, 2, as.factor ))
+summary(asthma.mgt.adult2)
+asthma.factor <- asthma.mgt.adult2
+#write.csv(summary(asthma.mgt.adult1), "summary11.csv")
+```
+
+Here we collapse certain variables with to many classes, and factors with few cases.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asthma.mgt.adult2 <- asthma.mgt.adult2 %>%
+  mutate(EDUCAL = fct_collapse(EDUCAL,
+    "1" = "1",
+    "2" = "2",
+    "3" = "3",
+    "4" = "4",
+    "5" = "5",
+    "6" = c("6", "9")
+  ),
+  LAST.MD = fct_collapse(LAST.MD,
+    "4" = "4",
+    "5" = "5",
+    "6" = "6",
+    "7" = "7",
+    "9" = c("77", "88", "99"),
+  ),
+  LAST.MED = fct_collapse(LAST.MED,
+    "4" = "1",
+    "5" = "2",
+    "6" = "3",
+    "7" = "4",
+    "9" = c("77", "88", "99"),
+  ),
+  INCINDT = fct_collapse(INCINDT,
+    "1" = "1",
+    "2" = "2",
+    "3" = "3",
+    "7" = c("7", "9")
+  ),
+  LAST.SYMP = fct_collapse(LAST.SYMP,
+    "1" = "1",
+    "2" = "2",
+    "3" = "3",
+    "4" = "4",
+    "5" = "5",
+    "7" = "7",
+    "9" = c("77", "88", "99")
+  ),
+  DUR.30D = fct_collapse(DUR.30D,
+    "1" = "1",
+    "2" = "2",
+    "6" = "6",
+    "7" = c("7", "9","77" ,"99"),
+    "10" = "10",
+    "11" = "11",
+    "12" = "12"
+  ),
+  # EPIS.12M = fct_collapse(EPIS.12M,
+  #   "1" = "1",
+  #   "2" = "2",
+  #   "6" = "6",
+  #   "7" = c("7", "9")
+  # ),
+  ER.VISIT = fct_collapse(ER.VISIT,
+    "1" = "1",
+    "2" = "2",
+    "5" = c("5", "7", "9"),
+    "7" = c("7", "9")
+  ),
+  COMPASTH = fct_collapse(COMPASTH,
+    "1" = "1",
+    "2" = "2",
+    "3" = c("3","4"),
+    "6" = "6",
+    "7" = c("7", "9"),
+    "11" = "11"
+  ),
+  ACT.DAY30 = fct_collapse(ACT.DAY30,
+    "1" = "1",
+    "2" = "2",
+    "3" = "3",
+    "4" = "4",
+    "5" = "5",
+    "7" = c("7", "9")
+  ),
+  )
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asthma.mgt.adult2 <- asthma.mgt.adult2 %>%
+  mutate(INHALERW = fct_collapse(INHALERW,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9"),
+                                 "4" = c("5", "6")
+                                 ),
+         TCH.SIGN = fct_collapse(TCH.SIGN,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+          TCH.RESP = fct_collapse(TCH.RESP,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+          TCH.MON = fct_collapse(TCH.MON,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+          MGT.PLAN = fct_collapse(MGT.PLAN,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+          MGT.CLAS = fct_collapse(MGT.CLAS,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+          MOD.ENV = fct_collapse(MOD.ENV,
+                                 "1" = "1",
+                                 "2" = "2",
+                                 "3" = c("7", "9")
+                                 ),
+         )
+summary(asthma.mgt.adult2)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.mgt.ad.min <-  asthma.mgt.adult1
+# asth.mgt.ad.min <-  asthma.mgt.adult1 %>% filter(TCH.SIGN == 1 | TCH.SIGN == 2, 
+#                                                  TCH.RESP == 1 | TCH.RESP == 2,
+#                                                  TCH.MON == 1 | TCH.MON == 2,
+#                                                  MGT.PLAN == 1 | MGT.PLAN == 2,
+#                                                  MGT.CLAS == 1 | MGT.CLAS  == 2,
+#                                                  INHALERW == 1 | INHALERW == 2,
+#                                                  MOD.ENV == 1 | MOD.ENV == 2)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+dim(asth.mgt.ad.min)
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.mgt.ad.min2 <- asth.mgt.ad.min
+# asth.mgt.ad.min2 <- asth.mgt.ad.min %>% filter(LAST.MD != 77 & LAST.MD != 99,
+#                                                LAST.MED != 77 & LAST.MED != 99,
+#                                                LAST.SYMP != 77 & LAST.SYMP != 99,LAST.SYMP != 88,
+#                                                INCINDT != 7 & INCINDT != 9,
+#                                                SYMP.30D != 77 & SYMP.30D != 99,
+#                                                DUR.30D != 9 & DUR.30D != 99,
+#                                                ASLEEP30 != 99, ASLEEP30 !=66, ASLEEP30 != 100, ASLEEP30 != 111,
+#                                                EPIS.12M != 7 & EPIS.12M != 9,
+#                                                COMPASTH != 7 & COMPASTH != 9,
+#                                                INS1 != 7 & INS1 != 9,
+#                                                ER.VISIT != 7 & ER.VISIT != 9,
+#                                                ER.TIMES != 777 & ER.TIMES != 999,
+#                                                URG.TIMES != 777 & URG.TIMES != 999,
+#                                                HOSP.VST != 9,
+#                                                HOSPTIME != 777
+#                                                )
+```
+
+
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# asth.mgt.ad.min %>% select(DUR.ASTH) %>% filter(DUR.ASTH==0)
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+#dim(asth.mgt.ad.min2)
+```
+
+
+## Structure of the data
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+str(asth.mgt.ad.min2)
+attach(asth.mgt.ad.min2)
+```
+
+
+### Summary of the Data where variable are numeric
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+sum.data <- summary(asth.mgt.ad.min2)
+sum.data
+#write.csv(sum.data, "summary_data.csv")
+```
+
+
+
+
+### Distribution of the Variables in the Data
+
+#### Proportions      
+Histograms tell us how the data is distributed in the dataset (numeric fields).  
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+par(mfrow=c(3,3))
+barplot(sort(table(asthma.factor$TCH.SIGN),decreasing=TRUE),main="TCH.SIGN",las=2)
+barplot(sort(table(asthma.factor$TCH.RESP),decreasing=TRUE),main="TCH.REPS",las=2)
+barplot(sort(table(asthma.factor$TCH.MON),decreasing=TRUE),main="TCH.MON",las=2)
+barplot(sort(table(asthma.factor$MGT.PLAN),decreasing=TRUE),main="MGT.PLAN",las=2)
+barplot(sort(table(asthma.factor$MGT.CLAS),decreasing=TRUE),main="MGT.CLAS",las=2)
+barplot(sort(table(asthma.factor$INHALERW),decreasing=TRUE),main="INHALERW",las=2)
+barplot(sort(table(asthma.factor$MOD.ENV),decreasing=TRUE),main="MOD.ENV",las=2)
+
+
+# cor(asthma.mgt.adult1[,-1], use = "na.or.complete")
+# write.csv(cor(asthma.mgt.adult1[,-1], use = "na.or.complete"), "predictors_cor.csv")
+```
+
+
+```{r, message = FALSE, warning = FALSE, echo = F}
+par(mfrow =c(3,3))
+barplot(sort(table(asthma.factor$LAST.MD), decreasing=TRUE),main="LAST.MD",las=2)
+barplot(sort(table(asthma.factor$LAST.MED),decreasing=TRUE),main="LAST.MED",las=2)
+barplot(sort(table(asthma.factor$HOSP.VST),decreasing=TRUE),main="HOSP.VST",las=2)
+barplot(sort(table(asthma.factor$DUR.30D),decreasing=TRUE),main="DUR.30D",las=2)
+barplot(sort(table(asthma.factor$ER.VISIT),decreasing=TRUE),main="ER.VISIT",las=2)
+barplot(sort(table(asthma.factor$LAST.SYMP),decreasing=TRUE),main="LAST.SYMP",las=2)
+barplot(sort(table(asthma.factor$COMPASTH),decreasing=TRUE),main="COMPASTH",las=2)
+barplot(sort(table(asthma.factor$INCINDT),decreasing=TRUE),main="INCINDT",las=2)
+barplot(sort(table(asthma.factor$WORKTALK),decreasing=TRUE),main="WORKTALK",las=2)
+barplot(sort(table(asthma.factor$AGEG.F7),decreasing=TRUE),main="AGEG.F7",las=2)
+barplot(sort(table(asthma.factor$ASRXCOST),decreasing=TRUE),main="ASRXCOST",las=2)
+barplot(sort(table(asthma.factor$EDUCAL),decreasing=TRUE),main="EDUCAL",las=2)
+barplot(sort(table(asthma.factor$INS2),decreasing=TRUE),main="INS2",las=2)
+barplot(sort(table(asthma.factor$SMOKE100),decreasing=TRUE),main="SMOKE100",las=2)
+barplot(sort(table(asthma.factor$COPD),decreasing=TRUE),main="COPD",las=2)
+barplot(sort(table(asthma.factor$BRONCH),decreasing=TRUE),main="BRONCH",las=2)
+barplot(sort(table(asthma.factor$DEPRESS),decreasing=TRUE),main="DEPRESS",las=2)
+barplot(sort(table(asthma.factor$EMPHY),decreasing=TRUE),main="EMPHY",las=2)
+barplot(sort(table(asthma.factor$SEX),decreasing=TRUE),main="SEX",las=2)
+barplot(sort(table(asthma.factor$X_INCOMG),decreasing=TRUE),main="X_INCOMG",las=2)
+barplot(sort(table(asthma.factor$RACEG.F),decreasing=TRUE),main="RACEG_F",las=2)
+barplot(sort(table(asthma.factor$X_RFBMI5),decreasing=TRUE),main="X_RFBMI5",las=2)
+```
+
+
+### The correlations betweeen predictors
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# cor_asthma.adult <- cor(asth.mgt.ad.min2[,-c(1:7)], use = "na.or.complete")
+# corrplot(cor_asthma.adult, order = 'hclust', type = 'lower')
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# cor(asthma.mgt.adult1[,-1], use = "na.or.complete")
+# write.csv(cor(asthma.mgt.adult1[,-1], use = "na.or.complete"), "predictors_cor.csv")
+```
+
+There are highly correlated predictors. We are going to remove some of them.
+It remain 33 variable for our data set with 7 response variables.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+#asth.mgt.ad.min21 <- select(asth.mgt.ad.min2, -ASSPCOST, -ASMDCOST)
+#asthma.mgt.adult2 <- select(asthma.mgt.adult2, -ASSPCOST, -ASMDCOST)
+#colnames(asth.mgt.ad.min21)
+```
+
+### CONSTRUCT THE RESPONSE VARIABLE
+We first extract variables related to education, 
+#### Selection of variables
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+responses <- data.frame(
+                        TCH.SIGN = asthma.mgt.adult2$TCH.SIGN, 
+                        TCH.RESP = asthma.mgt.adult2$TCH.RESP,
+                        TCH.MON = asthma.mgt.adult2$TCH.MON,
+                        MGT.PLAN = asthma.mgt.adult2$MGT.PLAN,
+                        MGT.CLAS = asthma.mgt.adult2$MGT.CLAS,
+                        INHALERW = asthma.mgt.adult2$INHALERW,
+                        MOD.ENV = asthma.mgt.adult2$MOD.ENV
+                        )
+summary(responses)
+```
+
+#### Exploration of the clustering
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# responses.cat <- data.frame(apply(responses, 2, as.factor))
+# summary(responses.cat)
+```
+
+#### Elbow method to find the number of clusters 
+We run kmeans with different clusters from 1 to 16 and we produce a 
+scree plot to determine the number of cluster at the elbow.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Elbow method Scree Plot", echo=FALSE, results='show'}
+set.seed(25)
+# Initialize total within sum of squares error: wss
+wss <- 0
+
+# Look over 1 to 15 possible clusters
+for (i in 1:16) {
+  # Fit the model: km.out
+  km.out <- kmeans(responses, centers = i, nstart = 20, iter.max = 50)
+  # Save the within cluster sum of squares
+  wss[i] <- km.out$tot.withinss
+}
+
+# Produce a scree plot
+plot(1:16, wss, type = "b", 
+     xlab = "Number of Clusters", 
+     ylab = "Within groups sum of squares"
+)
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# Select number of clusters
+k <-4
+```
+ The number of cluster is 4
+ 
+#### Now we do the clustering and  extract the centers of resulting model
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+set.seed(25)
+# Build model with k clusters: km.out
+km.out <- kmeans(responses, centers = k, nstart = 20, iter.max = 50)
+
+# View the resulting model
+km.out$centers
+
+```
+
+
+#### We add the point classification to the original data
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+resp.asthma <- cbind(responses, target = km.out$cluster)
+head(resp.asthma)
+write.csv(resp.asthma, "response_interpret.csv")
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+resp.asthma$target <- as.factor(resp.asthma$target)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+summary(resp.asthma)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "View of the clustering result", echo=FALSE, results='show'}
+plot(resp.asthma$target)
+```
+
+
+### Interpretation of the Selft-Management Response clustering 
+#### TCH.SIGN
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.sign <- group_by(resp.asthma, TCH.SIGN, target) %>% summarise(count=n()) %>%
+  group_by(TCH.SIGN) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.sign)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ asth.res1 <- egt.sign %>% group_by(TCH.SIGN) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res1
+```
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.sign, aes(x=target, y=proportion, group=TCH.SIGN, linetype=TCH.SIGN))+geom_line()
+```
+
+
+In  the target response, 8 is the positive answer, 3 is the negative answer, 5 is don't know and 6 is refused for the question:
+TCH_SIGN  Has a doctor or other health professional ever taught you...
+a. How to recognize early signs or symptoms of an asthma episode?
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.sign <- group_by(resp.asthma, target, TCH.SIGN) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(TCH.SIGN) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.sign
+```
+
+
+#### TCH.RESP
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.resp <- group_by(resp.asthma, TCH.RESP, target) %>% summarise(count=n()) %>%
+  group_by(TCH.RESP) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.resp)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ asth.res2 <- egt.resp %>% group_by(TCH.RESP) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res2
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.resp, aes(x=target, y=proportion, group=TCH.RESP, linetype=TCH.RESP))+geom_line()
+```
+In  the target response, 8 is the positive answer, 3 is the negative answer, 1 is don't know and 1 is refused for the question:
+TCH_RESP Has a doctor or other health professional ever taught you...
+b. What to do during an asthma episode or attack?
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.resp <- group_by(resp.asthma, target, TCH.RESP) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(TCH.RESP) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.resp
+```
+
+#### TCH.MON
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.mon <- group_by(resp.asthma, TCH.MON, target) %>% summarise(count=n()) %>%
+  group_by(TCH.MON) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.mon)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.res3 <- egt.mon %>% group_by(TCH.MON) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res3
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.mon, aes(x=target, y=proportion, group=TCH.MON, linetype=TCH.MON))+geom_line()
+```
+In  the target response, 8 is the positive answer, 7 are the negative answers, 2 is don't know and 2 is refused for the question:
+TCH_MON A peak flow meter is a hand held device that measures how quickly you can blow air
+out of your lungs. Has a doctor or other health professional ever taught you…
+c. How to use a peak flow meter to adjust your daily medications?
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.mon <- group_by(resp.asthma, target, TCH.MON) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(TCH.MON) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.mon
+```
+
+#### MGT.PLAN
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.plan <- group_by(resp.asthma, MGT.PLAN, target) %>% summarise(count=n()) %>%
+  group_by(MGT.PLAN) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.plan)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.res4 <- egt.plan %>% group_by(MGT.PLAN) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res4
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.plan, aes(x=target, y=proportion, group=MGT.PLAN, linetype=MGT.PLAN))+geom_line()
+```
+In  the target response, 8 is the positive answer, 3 is the negative answer, 9 is don't know and 9 is refused for the question:
+MGT_PLAN An asthma action plan, or asthma management plan, is a form with instructions
+about when to change the amount or type of medicine, when to call the doctor for
+advice, and when to go to the emergency room.
+Has a doctor or other health professional EVER given you an asthma action plan?
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.plan <- group_by(resp.asthma, target, MGT.PLAN) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(MGT.PLAN) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.plan
+```
+
+
+#### MGT.CLAS
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.clas <- group_by(resp.asthma, MGT.CLAS, target) %>% summarise(count=n()) %>%
+  group_by(MGT.CLAS) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.clas)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.res5 <- egt.clas %>% group_by(MGT.CLAS) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res5
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.clas, aes(x=target, y=proportion, group=MGT.CLAS, linetype=MGT.CLAS))+geom_line()
+```
+In  the target response, 8 is the positive answer, 8 or(3,7)  is the negative answer, 8 is don't know and 6 is refused for the question:
+MGT_CLAS Have you ever taken a course or class on how to manage your asthma?
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.clas <- group_by(resp.asthma, target, MGT.CLAS) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(MGT.CLAS) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.clas
+```
+
+
+#### INHALERW 
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.inhal <- group_by(resp.asthma, INHALERW , target) %>% summarise(count=n()) %>%
+  group_by(INHALERW ) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.inhal)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.res6 <- egt.inhal %>% group_by(INHALERW) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res6
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.inhal, aes(x=target, y=proportion, group=INHALERW , linetype=INHALERW))+geom_line()
+```
+In  the target response, 8 is the positive answer, 3 is the negative answer, 4 is don't know and 1 is refused for the question:
+INHALERW (8.4) Did a doctor or other health professional watch you use the inhaler?
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.inhal <- group_by(resp.asthma, target, INHALERW) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(INHALERW) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.inhal
+```
+
+
+#### MOD.ENV
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+egt.env <- group_by(resp.asthma, MOD.ENV , target) %>% summarise(count=n()) %>%
+  group_by(MOD.ENV) %>% mutate(etotal=sum(count), proportion=count/etotal)
+tibble::as.tibble(egt.env)
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.res7 <- egt.env %>% group_by(MOD.ENV) %>% mutate(group.max = max(count)) %>% group_by(target) %>% filter(count==group.max)
+asth.res7
+```
+
+
+In  the target response, 3 is the positive answer, 3 is the negative answer, 4 is don't know and 1 is refused for the question:
+MOD_ENV (7.13) INTERVIEWER READ: Now, back to questions specifically about you.
+Has a health professional ever advised you to change things in your home, school, or
+work to improve your asthma
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ggplot(egt.env, aes(x=target, y=proportion, group=MOD.ENV, linetype=MOD.ENV))+geom_line()
+```
+```{r}
+length(asth.res1$TCH.SIGN)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.env <- group_by(resp.asthma, target, MOD.ENV) %>% 
+  summarise(count=n()) %>%
+  group_by(target) %>% 
+  mutate(etotal=sum(count), proportion=count/etotal) %>%
+  group_by(MOD.ENV) %>%
+  mutate(group.max = max(count)) %>%
+  filter(count==group.max)
+asth.env
+```
+
+
+#### Summary  of the response variables
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# response.var <- data_frame(RESPONSE = c("1", "2", "3"),
+#                            TCH.SIGN = asth.res1$target,
+#                            TCH.RESP  = asth.res2$target,
+#                            TCH.MON = asth.res3$target,
+#                            MGT.PLAN = asth.res4$target,
+#                            MGT.CLAS = asth.res5$target,
+#                            INHALERW = asth.res6$target,
+#                            MOD.ENV = asth.res7$target)
+# response.var
+```
+
+```{r}
+asth.edul1 <- merge(asth.res1, asth.res2 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.res3 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.res4 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.res5 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.res6 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.res7 ,by.x = "target", by.y = "target", all = TRUE) %>%
+  select(., target, TCH.SIGN, TCH.RESP, TCH.MON, MGT.PLAN, MGT.CLAS, INHALERW, MOD.ENV)
+asth.edul1
+write.csv(asth.edul1, "asthma_edu_level.csv")
+```
+
+
+```{r}
+asth.edul2 <- merge(asth.sign, asth.resp ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.mon ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.plan ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.clas ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.inhal ,by.x = "target", by.y = "target", all = TRUE) %>%
+  merge(., asth.env ,by.x = "target", by.y = "target", all = TRUE) %>%
+  select(., target, TCH.SIGN, TCH.RESP, TCH.MON, MGT.PLAN, MGT.CLAS, INHALERW, MOD.ENV)
+asth.edul2 
+```
+
+
+##### For the response variable TARGET, an excellent management skill has number 2 but a poor management skill has number 7 and 5.
+##### We can build a logistics regression on the dataset.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+resp.asthma2 <- resp.asthma
+resp.asthma2$target <- if_else(resp.asthma2$target==3, 1, 0)
+```
+
+## !!!! Please, check the values of yes in the response. var and change if condition of resp.asthma2$taget 
+## !!!! above are different. Remove "Break" in the chunk below!
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+break
+```
+
+
+### Here we remove the varibles used to calculate the target variable and reformat the data frame.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.mgt.ad.min31 <- asthma.factor %>%
+  select( -TCH.SIGN,-TCH.RESP, -TCH.MON, -MGT.PLAN, -MGT.CLAS, -INHALERW, -MOD.ENV) %>%
+  mutate(TARGET = resp.asthma2$target) %>% relocate(TARGET, .before = SEX)
+str(asth.mgt.ad.min31)
+```
+
+
+
+### PREPARE THE DATA FOR MODELISATION
+
+#### We remove the rows with missing values.
+Here were are going to drop missing data because they are only 12  over 13,922 rows.
+We also transform all predictors to categorical.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+asth.mgt.ad.min33 <- drop_na(asth.mgt.ad.min31)
+asth.mgt.ad.min35 <- asth.mgt.ad.min33
+asth.mgt.ad.min33[,-1] <- data.frame(apply(asth.mgt.ad.min33[,-1], 2, as.factor))
+asth.mgt.ad.min35 <- data.frame(apply(asth.mgt.ad.min35, 2, as.factor))
+summary(asth.mgt.ad.min35)
+```
+
+#### Visualization of some combine variables
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Proportion of Good Skill Management in terme of Education Level", echo=FALSE, results='show'}
+library(dplyr)
+egt <- group_by(asth.mgt.ad.min35, EDUCAL, TARGET) %>% summarise(count=n()) %>%
+  group_by(EDUCAL) %>% mutate(etotal=sum(count), proportion=count/etotal)
+ggplot(egt, aes(x=EDUCAL, y=proportion, group=TARGET, linetype=TARGET))+geom_line()
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Proportion of Good skill management in terme of Duration of Asthma Attack", echo=FALSE, results='show'}
+egt <- summarize(group_by(asth.mgt.ad.min35, LAST.SYMP, TARGET), count = n())
+egt <- mutate(egt, etotal =sum(count), proportion= count/etotal)
+ggplot(data=egt, aes(x=LAST.SYMP, y=proportion, group=TARGET, linetype=TARGET))+geom_line()
+```
+
+
+
+
+#### Splitting the data into train and test sets
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+library(caret)
+set.seed(25)
+asth.mgt.ad.min33$TARGET <- factor(asth.mgt.ad.min33$TARGET)
+inTraining <- createDataPartition(asth.mgt.ad.min33$TARGET, p = .80, list = FALSE)
+training1 <- asth.mgt.ad.min33[ inTraining,]
+testing1  <- asth.mgt.ad.min33[-inTraining,]
+```
+
+### BUILDS MODELS
+
+```{r}
+str(asth.mgt.ad.min33$TARGET)
+```
+
+
+#### Model using full predictors with glm
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glm.all <- glm(TARGET~., data=training1, family=binomial)
+glm.all
+```
+
+
+
+
+#### Confusion Matrix with the testingset
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# glm.pred <- predict(glm.all, newdata = testing1[,-1], type = "response")
+# predicted <- as.factor(ifelse(glm.pred>.5,1,0))
+# glm.cm <- confusionMatrix(data = predicted, testing1$TARGET, positive = '1')
+# glm.cm
+```
+
+
+#### First glm model using backward elimination of step function
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glm.mod11 <- step(glm.all, trace = 0)
+glm.mod11
+```
+Call:  glm(formula = TARGET ~ SEX + AGEG.F7 + X_RACEGR3 + EDUCAL + BRONCH + 
+    DUR.30D + INCINDT + LAST.MD + LAST.MED + LAST.SYMP + COMPASTH + 
+    HOSPTIME + ASRXCOST + WORKTALK, family = binomial, data = training1)
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# glm.mod11 <- glm(formula = TARGET ~ SEX + AGEG.F7 + X_RACEGR3 + EDUCAL + BRONCH +
+#     DUR.30D + INCINDT + LAST.MD + LAST.MED + LAST.SYMP + COMPASTH +HOSPPLAN+
+#    + ASRXCOST + WORKTALK, family = binomial, data = training1)
+
+```
+
+#### Confusion Matrix with the testingset
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glm11.pred <- predict(glm.mod11, newdata = testing1[,-1], type = "response")
+predicted <- as.factor(ifelse(glm11.pred>.5,1,0))
+glm11.cm <- confusionMatrix(data = predicted, factor(testing1$TARGET), positive = '1')
+glm11.cm
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+
+```
+
+#### Second glm model
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glm.mod12 <-  glm(formula = TARGET ~ SEX + AGEG.F7 + X_RACEGR3 + EDUCAL + X_INCOMG + 
+    BRONCH + DUR.30D + INCINDT + LAST.MD + LAST.MED + LAST.SYMP + 
+    COMPASTH + WORKTALK, family = binomial, data = training1)
+glm.mod12
+```
+
+
+#### Confusion Matrix with the testingset
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+glm12.pred <- predict(glm.mod12, newdata = testing1[,-1], type = "response")
+predicted <- as.factor(ifelse(glm12.pred>.5,1,0))
+glm12.cm <- confusionMatrix(data = predicted, factor(testing1$TARGET), positive = '1')
+glm12.cm
+```
+
+#### Lasso and Ridge model
+
+Since our dataset has multiple variable, we can use penalized logistic regression to find an optimal performing model.
+Ridge Regression and Lasso Regression have two different approaches. 
+Ridge Regression incorporates all variables in the model and gives the coefficients of variables with minor contribution close to zero
+Lasso Regression keeps only the most significant variables and gives zero to the coefficient of the rest of variables.
+
+#### Split the data into trainset and testingset, Dumy code categorical predictors
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+set.seed(25)
+inTraining <- createDataPartition(asth.mgt.ad.min33$TARGET, p = .80, list = FALSE)
+training2 <- asth.mgt.ad.min33[ inTraining,]
+testing2  <- asth.mgt.ad.min33[-inTraining,]
+x <- model.matrix(TARGET ~., data = training2)
+y = training2$TARGET
+xt <- model.matrix(TARGET ~., data = testing2)
+yt <- as.factor(testing2$TARGET)
+
+```
+
+
+
+#### Ridge Regression 
+We fit and obsrve the coefficients of rigde regression against the log of lambda.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Variation of Ridge Model Coefficient by Log Lambda", echo=FALSE, results='show'}
+fit.ridge <- glmnet(x = x,y=y, alpha=0, family="binomial")
+plot(fit.ridge, xvar= "lambda", label=TRUE)
+```
+The coefficients are significative for negative log lambda and start stabilize around -4
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Lambda that Minimises MSE", echo=FALSE, results='show'}
+cv.ridge <- cv.glmnet(x = x, y = y, alpha=0)
+plot(cv.ridge)
+```
+
+The plot shows that the log of the optimal value of lambda (i.e. the one that minimises the root mean square error) is approximately -3. The exact value can be viewed by examining the variable lambda_min in the code below. In general though, the objective of regularisation is to balance accuracy and simplicity. In the present context, this means a model with the smallest number of coefficients that also gives a good accuracy.  To this end, the cv.glmnet function  finds the value of lambda that gives the simplest model but also lies within one standard error of the optimal value of lambda.
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+cv.ridge$lambda.min
+```
+
+#### Confusion matrix with  lambda min
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ridge.model1 <- glmnet(x = x,y=y, lambda = cv.ridge$lambda.min, alpha=0, family="binomial")
+ridge.pred1 <- predict(ridge.model1, newx = xt)
+predicted <- rep(0, length(yt))
+predicted[ridge.pred1>0.5] <- "1"
+ridge.cm1 <- confusionMatrix(data = as.factor(predicted), yt, positive = '1')
+ridge.cm1
+```
+We observe overfitting with this ridge model
+
+
+
+#### Confusion matrix with best lambda
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ridge.model2 <- glmnet(x = x,y=y, lambda = cv.ridge$lambda.1se, alpha=0, family="binomial")
+ridge.pred2 <- predict(ridge.model2, newx = xt)
+predicted <- rep(0, length(yt))
+predicted[ridge.pred2>0.5] <- "1"
+ridge.cm2 <- confusionMatrix(data = as.factor(predicted), yt, positive = '1')
+ridge.cm2
+```
+We observe overfitting with this second ridge model
+
+#### Getting the coefficients
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+coef(ridge.model1)
+```
+
+##### Lasso Regression
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+fit.lasso <- glmnet(x =x, y = y, alpha = 1, family = "binomial")
+plot(fit.lasso, xvar = "dev", label = TRUE)
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+fit.lasso <- glmnet(x,y)
+plot(fit.lasso, xvar = "lambda", label = TRUE)
+plot(fit.lasso, xvar = "dev", label = TRUE)
+```
+
+#### Find the best lambda using cross validation
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Lambda that minimises MSE in Lasso",echo=FALSE, results='show'}
+cv.lasso <- cv.glmnet(x,y)
+plot(cv.lasso)
+```
+The plot shows that the log of the optimal value of lambda (i.e. the one that minimises the root mean square error) is approximately -10. The exact value can be viewed by examining the variable lambda_min in the code below. In general though, the objective of regularisation is to balance accuracy and simplicity. In the present context, this means a model with the smallest number of coefficients that also gives a good accuracy.  To this end, the cv.glmnet function  finds the value of lambda that gives the simplest model but also lies within one standard error of the optimal value of lambda.
+
+
+#### Confusion Matrix with lambda min
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+lasso.model1 <- glmnet(x =x, y = y, lambda = cv.lasso$lambda.min, alpha = 1, family = "binomial")
+lasso.pred1 <- predict(lasso.model1, newx = xt, type = "response")
+predicted <- as.factor(ifelse(lasso.pred1>.5,1,0))
+lasso.cm1 <- confusionMatrix(data = predicted, yt, positive = '1')
+lasso.cm1
+```
+
+#### Getting the coefficients
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+coef(lasso.model1)
+```
+
+
+
+#### Confusion Matrix with best lambda
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+lasso.model2 <- glmnet(x =x, y = y, lambda = cv.lasso$lambda.1se, alpha = 1, family = "binomial")
+lasso.pred2 <- predict(lasso.model2, newx = xt, type = "response")
+predicted <- as.factor(ifelse(lasso.pred2>.5,1,0))
+lasso.cm2 <- confusionMatrix(data = predicted, yt, positive = '1')
+lasso.cm2
+```
+
+
+##### Calculating the AICc of Ridge and Lasso Models
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+AICc <- function(fit){
+  tLL <- fit$nulldev - deviance(fit)
+  k <- fit$df
+  n <- fit$nobs
+  AICc <- -tLL+2*k+2*k*(k+1)/(n-k-1)
+  return (AICc)
+}
+
+```
+
+it <- glmnet(x, y, family = "multinomial") 
+
+tLL <- fit$nulldev - deviance(fit)
+k <- fit$df
+n <- fit$nobs
+AICc <- -tLL+2*k+2*k*(k+1)/(n-k-1)
+AICc
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+AICc(ridge.model1)
+AICc(lasso.model1)
+```
+
+#### Partial Least Squared
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+training3 <- training1
+testing3 <- testing1
+training3$TARGET <- ifelse(training3$TARGET=="1","T","F")
+testing3$TARGET <- ifelse(testing3$TARGET=="1","T","F")
+testing3$TARGET <- factor(testing3$TARGET)
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ctrl <- trainControl(method = "repeatedcv", repeats = 3)
+
+plsFit1 <- train(
+  TARGET ~ .,
+  data = training3,
+  method = "pls",
+  preProc = c("center", "scale"),
+  tuneLength = 15,
+  ## added:
+  trControl = ctrl
+)
+```
+
+#### Confusion Matrix with best lambda
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+pls1.pred <- predict(plsFit1, newdata = testing3[,-1], type = "prob")
+pls.pred1 <- predict(plsFit1, newdata = testing3[,-1], type = "raw")
+pls.cm1 <- confusionMatrix(data = pls.pred1, testing3$TARGET, positive = 'T')
+pls.cm1
+
+```
+
+
+
+
+
+#### Here we train the model with partial least square using tune parameter.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+ctrl <- trainControl(
+  method = "repeatedcv", 
+  repeats = 3,
+  classProbs = TRUE, 
+  summaryFunction = twoClassSummary
+)
+
+set.seed(123)
+plsFit2 <- train(
+  TARGET ~ .,
+  data = training3,
+  method = "pls",
+  preProc = c("center", "scale"),
+  tuneLength = 15,
+  trControl = ctrl,
+  metric = "ROC"
+)
+plsFit2
+```
+
+#### Confusion Matrix with best lambda
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+pls2.pred <- predict(plsFit2, newdata = testing3[,-1], type = "prob")
+pls.pred2 <- predict(plsFit2, newdata = testing3[,-1], type = "raw")
+pls.cm2 <- confusionMatrix(data = pls.pred2, testing3$TARGET, positive = 'T')
+pls.cm2
+
+```
+#### Here we train the model with gradient boosting machine  using tune parameter.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# ctrl <- trainControl(
+#   method = "repeatedcv", 
+#   repeats = 3,
+#   classProbs = TRUE, 
+#   summaryFunction = twoClassSummary
+# )
+# 
+# set.seed(123)
+# gbmFit1 <- train(
+#   TARGET ~ .,
+#   data = training3,
+#   method = "gbm",
+#   preProc = c("center", "scale"),
+#   tuneLength = 15,
+#   trControl = ctrl,
+#   metric = "ROC"
+# )
+# gbmFit1
+```
+
+#### Confusion Matrix with gbmfit1
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# gbm1.pred <- predict(gbmFit1, newdata = testing3[,-1], type = "prob")
+# gbm1.pred2 <- predict(gbmFit1, newdata = testing3[,-1], type = "raw")
+# gbm1.cm2 <- confusionMatrix(data = gbm1.pred2, testing3$TARGET, positive = 'T')
+# gbm1.cm2
+
+```
+
+
+#### SVM Model
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 5,
+                           ## Estimate class probabilities
+                           classProbs = TRUE,
+                           ## Evaluate performance using 
+                           ## the following function
+                           summaryFunction = twoClassSummary)
+
+set.seed(825)
+elastic.reg <- train(TARGET ~ ., data = training3, 
+                 method = "glmnet", 
+                 trControl = fitControl, 
+                 preProc = c("center", "scale"),
+                 tuneLength = 10,
+                 metric = "ROC")
+elastic.reg               
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+elastic.reg$bestTune
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+plot(elastic.reg)
+```
+
+#### Confusion Matrix with elasticnet
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+en.pred <- predict(elastic.reg, newdata = testing3[,-1], type = "prob")
+en.pred2 <- predict(elastic.reg, newdata = testing3[,-1], type = "raw")
+en.cm2 <- confusionMatrix(data = en.pred2, testing3$TARGET, positive = 'T')
+en.cm2
+
+```
+
+
+
+#### Confusion matrix of gbmFit2
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+# gbm2.pred <- predict(gbmFit2, newdata = testing3[,-1], type = "prob")
+# gbm2.pred2 <- predict(gbmFit2, newdata = testing3[,-1], type = "raw")
+# gbm2.cm2 <- confusionMatrix(data = gbm2.pred2, testing3$TARGET, positive = 'T')
+# gbm2.cm2
+
+```
+
+
+
+### SELECT MODELS
+#### We compare the models with the accuray, precision, sensitivity, specificity, and F1 score from the confusion matrix
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+cm.metric <- function(cm){
+  test = c(cm$overall["Accuracy"],
+           cm$byClass["Precision"],
+           cm$byClass["Sensitivity"],
+           cm$byClass["Specificity"],
+           cm$byClass["F1"]) 
+  return(test)
+}
+```
+
+
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+metrics.mod <- data.frame(#glm.mod = cm.metric(glm.cm),
+                          glm.mod11 = cm.metric(glm11.cm),
+                          glm.mod12 = cm.metric(glm12.cm),
+                          ridge.mod1 = cm.metric(ridge.cm1),
+                          ridge.mod2 = cm.metric(ridge.cm2),
+                          lasso.mod1 = cm.metric(lasso.cm1),
+                          lasso.mod2 = cm.metric(lasso.cm2),
+                          pls.mod1 = cm.metric(pls.cm1),
+                          pls.mod2 = cm.metric(pls.cm2),
+                          en.mod = cm.metric(en.cm2)
+                          )
+metrics.mod
+```
+
+With precision and specificity equal to 1, the ridge.mod2 model is overfitting. But lasso.mod1 has the best accuracy, precision, sensivity, and specificity.
+
+### Using pROC package. 
+We can plot the ROC curve and extract the AUC value.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+library(pROC)
+library(dplyr)
+prediction <- data.frame(TARGET = testing1$TARGET,
+                         glm1 = glm11.pred, 
+                         gml2 = glm12.pred, 
+                         pls1 = pls1.pred,
+                         pls2 = pls2.pred,
+                         rp1 = ridge.pred1, 
+                         rp2 = ridge.pred2, 
+                         lp1 = lasso.pred1, 
+                         lp2 = lasso.pred2)
+
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+
+```
+
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, fig.cap= "Best Model with AUC", echo=FALSE, results='show'}
+## With ggplot2 ##
+library(ggplot2)
+# Create multiple curves to plot
+roc1 <- roc(TARGET ~., data = prediction)
+ggroc(roc1)
+
+```
+The Lasso model has the best Area Under the Curve.
+
+### We run the lasso.mod1 model with the entire dataset
+
+#### The best model is Lasso  model
+#### The Statistic of the best model is given below.
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+set.seed(25)
+x <- model.matrix(TARGET ~., data = asth.mgt.ad.min33)
+y = asth.mgt.ad.min33$TARGET
+```
+
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+lasso.model <- glmnet(x =x, y = y, lambda = cv.lasso$lambda.min, alpha = 1, family = "binomial")
+lasso.pred <- predict(lasso.model, newx = x, type = "response")
+lasso.predicted <- as.factor(ifelse(lasso.pred>.5,1,0))
+lasso.cm <- confusionMatrix(data = factor(lasso.predicted), factor(y), positive = '1')
+lasso.cm
+```
+#### AUC of the best model
+```{r, message = FALSE, warning = FALSE, echo = F, results='show'}
+plot(roc(y, lasso.pred), print.auc = TRUE)
+```
+
+
+
+
+#### Coefficients of the best model
+The dot before the coefficient means that the lasso model ignore unimportant class of the variable.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+coef(lasso.model)
+```
+ 
+ 
+#### We look at the odd ratio off each variable
+A value greater than 1 means an increase  effect on the odd ratio compare to baseline.
+For example, focusing on SEX variable, Women(SEX2) are more likely to have good Skill on asthma management than men(SEX1 the baseline). Other variables can be interpret the same way.
+```{r, eval=TRUE, message=FALSE, warning=FALSE, echo=FALSE, results='show'}
+exp(coef(lasso.model))
+```
+
+
+
+
